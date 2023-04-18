@@ -1,3 +1,49 @@
 package main
 
-func main() {}
+import (
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"internal/config"
+	"internal/handlers"
+	"internal/storage"
+
+	"github.com/go-chi/chi"
+	"github.com/rs/zerolog"
+)
+
+func main() {
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	cfg, err := config.NewServerConfig()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	logger := zerolog.New(os.Stdout).Level(1)
+	dc, err := storage.NewDBController(cfg.DatabaseURI)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	controller := handlers.NewController(dc, logger)
+
+	r := chi.NewRouter()
+	r.Mount("/", controller.Router())
+
+	server := &http.Server{Addr: cfg.HTTPAddress, Handler: r}
+	go func() {
+		if err := server.ListenAndServe(); err != nil {
+			log.Fatalln(err)
+		}
+	}()
+
+	<-stop
+
+	// горутина, которая шлет заказы в аккруал с заданной периодичностью (по появлению заказа)
+}
