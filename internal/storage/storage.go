@@ -37,7 +37,7 @@ type UserBalance struct {
 }
 
 type Order struct {
-	Number     int       `json:"number"`
+	Number     string    `json:"number"`
 	Status     string    `json:"status"`
 	Accrual    *float64  `json:"accrual,omitempty"`
 	UploadedAt time.Time `json:"uploaded_at"`
@@ -70,7 +70,7 @@ type StorageController interface {
 }
 
 type DBController struct {
-	db     *sql.DB // реализиует методы StorageController'a
+	db     *sql.DB // реализует методы StorageController'a
 	logger zerolog.Logger
 }
 
@@ -187,9 +187,7 @@ func (d *DBController) AddOrder(login string, number string) (AddOrderReturn, er
 	defer cancel()
 	var userId int
 
-	n, _ := strconv.Atoi(number)
-
-	row := d.db.QueryRow("SELECT user_id FROM orders WHERE number = $1", n)
+	row := d.db.QueryRow("SELECT user_id FROM orders WHERE number = $1", number)
 
 	if row.Scan(&userId) == sql.ErrNoRows {
 		row := d.db.QueryRow("SELECT id FROM users WHERE login = $1", login)

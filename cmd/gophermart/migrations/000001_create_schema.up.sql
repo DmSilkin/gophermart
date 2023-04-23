@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS orders (
     id serial PRIMARY KEY, 
     user_id bigint NOT NULL, 
-    number bigint NOT NULL, 
+    number varchar(100) NOT NULL, 
     status varchar(50) NOT NULL, 
     accrual numeric, 
     uploaded_at timestamptz NOT NULL

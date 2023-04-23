@@ -15,7 +15,7 @@ import (
 type Controller struct {
 	storage storage.StorageController // интерфейс для взаимодействия с БД
 	logger  zerolog.Logger
-	//
+	// Список аутентифицированных пользователей?
 }
 
 func NewController(storage storage.StorageController, logger zerolog.Logger) *Controller {
@@ -30,7 +30,6 @@ func (c Controller) Router() chi.Router {
 
 	r.Use(middleware.GzipHandle, middleware.UnGzipHandle, middleware.CheckCookieHandle)
 
-	r.Get("/", c.defaultEndpointHandler)
 	r.Get("/api/user/orders", c.userGetOrdersHandler)
 	r.Get("/api/user/balance", c.userBalanceHandler)
 	r.Get("/api/user/withdrawals", c.userWithdrawalsHandler)
@@ -43,22 +42,17 @@ func (c Controller) Router() chi.Router {
 	return r
 }
 
-func (c Controller) defaultEndpointHandler(rw http.ResponseWriter, r *http.Request) {
-	rw.Write([]byte("Welcome to GOPHERMART!"))
-	rw.Header().Set("Content-Type", "application/json")
-}
-
 func (c Controller) userGetOrdersHandler(rw http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("gophermartCookie")
+	username := r.Header.Get("Authorization")
 
-	exist, _ := c.storage.IsUserExist(cookie.Value)
+	exist, _ := c.storage.IsUserExist(username)
 
 	if !exist {
 		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
 		return
 	}
 
-	orders, err := c.storage.GetOrders(cookie.Value)
+	orders, err := c.storage.GetOrders(username)
 
 	if err != nil {
 		http.Error(rw, "server error", http.StatusInternalServerError)
@@ -150,7 +144,7 @@ func (c Controller) userRegisterHandler(rw http.ResponseWriter, r *http.Request)
 	}
 	cookie := createCookieForUser(userInfo.Login)
 	http.SetCookie(rw, &cookie)
-	rw.Header().Add("Authorization", `Basic realm="Give username and password"`)
+	rw.Header().Add("Authorization", userInfo.Login)
 }
 
 func (c Controller) userLoginHandler(rw http.ResponseWriter, r *http.Request) {
@@ -170,7 +164,7 @@ func (c Controller) userLoginHandler(rw http.ResponseWriter, r *http.Request) {
 
 	cookie := createCookieForUser(userInfo.Login)
 	http.SetCookie(rw, &cookie)
-	rw.Header().Add("Authorization", `Basic realm="Give username and password"`)
+	rw.Header().Add("Authorization", userInfo.Login)
 }
 
 func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Request) {
@@ -180,7 +174,10 @@ func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	cookie, err := r.Cookie("gophermartCookie")
+	username := r.Header.Get("Authorization")
+	//cookie, err := r.Cookie("gophermartCookie")
+
+	//fmt.Println("cookie:", cookie)
 
 	requestData, err := ioutil.ReadAll(r.Body)
 	c.logger.Info().Msg(string(requestData))
@@ -196,7 +193,7 @@ func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	orderCode, err := c.storage.AddOrder(cookie.Value, string(requestData))
+	orderCode, err := c.storage.AddOrder(username, string(requestData))
 
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)

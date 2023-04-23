@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"compress/gzip"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -67,16 +66,27 @@ func UnGzipHandle(next http.Handler) http.Handler {
 func CheckCookieHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.RequestURI != "/api/user/register" && r.RequestURI != "/api/user/login" {
-			_, err := r.Cookie("gophermartCookie")
-			if err != nil {
-				switch {
-				case errors.Is(err, http.ErrNoCookie):
-					http.Error(w, "cookie not found", http.StatusUnauthorized)
-				default:
-					http.Error(w, "server error", http.StatusInternalServerError)
-				}
+			// fmt.Println("middleware for", r.RequestURI)
+			headers := r.Header
+			_, ok := headers["Authorization"]
+
+			if !ok {
+				http.Error(w, "cookie not found", http.StatusUnauthorized)
 				return
 			}
+			// _, err := r.Cookie("gophermartCookie")
+			// if err != nil {
+			// 	fmt.Println("err != nil", err.Error())
+			// 	fmt.Println(r.Cookies())
+
+			// 	switch {
+			// 	case errors.Is(err, http.ErrNoCookie):
+			// 		http.Error(w, "cookie not found", http.StatusUnauthorized)
+			// 	default:
+			// 		http.Error(w, "server error", http.StatusInternalServerError)
+			// 	}
+			// 	return
+			// }
 			next.ServeHTTP(w, r)
 		} else {
 			next.ServeHTTP(w, r)
