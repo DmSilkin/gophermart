@@ -170,8 +170,8 @@ func (c Controller) userLoginHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie := createCookieForUser(userInfo.Login)
-	rw.Header().Add("Authorization", `Basic realm="Give username and password"`)
 	http.SetCookie(rw, &cookie)
+	rw.Header().Add("Authorization", `Basic realm="Give username and password"`)
 }
 
 func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Request) {
