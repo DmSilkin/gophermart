@@ -25,7 +25,7 @@ func main() {
 		log.Fatalln(err)
 	}
 	logger := zerolog.New(os.Stdout).Level(1)
-	dc, err := storage.NewDBController(cfg.DatabaseURI)
+	dc, err := storage.NewDBController(cfg.DatabaseURI, logger)
 
 	if err != nil {
 		log.Fatalln(err)
@@ -45,5 +45,5 @@ func main() {
 
 	<-stop
 
-	// горутина, которая шлет заказы в аккруал с заданной периодичностью (по появлению заказа)
+	// горутина, которая получает заказы от аккруала с заданной периодичностью (по появлению заказа)
 }

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"encoding/json"
-	"errors"
 	"internal/middleware"
 	"internal/storage"
 	"io/ioutil"
@@ -28,7 +27,7 @@ func NewController(storage storage.StorageController, logger zerolog.Logger) *Co
 func (c Controller) Router() chi.Router {
 	r := chi.NewRouter()
 
-	r.Use(middleware.GzipHandle, middleware.UnGzipHandle)
+	r.Use(middleware.GzipHandle, middleware.UnGzipHandle, middleware.CheckCookieHandle)
 
 	r.Get("/", c.defaultEndpointHandler)
 	r.Get("/api/user/orders", c.userGetOrdersHandler)
@@ -50,55 +49,90 @@ func (c Controller) defaultEndpointHandler(rw http.ResponseWriter, r *http.Reque
 
 func (c Controller) userGetOrdersHandler(rw http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("gophermartCookie")
-	if err != nil {
-		switch {
-		case errors.Is(err, http.ErrNoCookie):
-			http.Error(rw, "cookie not found", http.StatusUnauthorized)
-		default:
-			http.Error(rw, "server error", http.StatusInternalServerError)
-		}
+
+	exist, _ := c.storage.IsUserExist(cookie.Value)
+
+	if !exist {
+		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
 		return
 	}
 
-	rw.Write([]byte(cookie.Value))
-	rw.Write([]byte("/api/user/orders userGetOrdersHandler!!!"))
+	orders, err := c.storage.GetOrders(cookie.Value)
+
+	if err != nil {
+		http.Error(rw, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	if len(orders.Orders) == 0 {
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	body, err := json.Marshal(orders.Orders)
 	rw.Header().Set("Content-Type", "application/json")
+	if err == nil {
+		rw.Write([]byte(body))
+	} else {
+		http.Error(rw, "server error", http.StatusInternalServerError)
+	}
 }
 
 func (c Controller) userBalanceHandler(rw http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("gophermartCookie")
-	if err != nil {
-		switch {
-		case errors.Is(err, http.ErrNoCookie):
-			http.Error(rw, "cookie not found", http.StatusUnauthorized)
-		default:
-			http.Error(rw, "server error", http.StatusInternalServerError)
-		}
+	cookie, _ := r.Cookie("gophermartCookie")
+
+	exist, _ := c.storage.IsUserExist(cookie.Value)
+
+	if !exist {
+		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
 		return
 	}
 
-	rw.Write([]byte(cookie.Value))
-	rw.Write([]byte("/api/user/orders userBalanceHandler!!!"))
+	userBalance, err := c.storage.GetBalance(cookie.Value)
+
+	if err != nil {
+		http.Error(rw, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	body, err := json.Marshal(userBalance)
 	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusOK)
+	if err == nil {
+		rw.Write([]byte(body))
+	} else {
+		http.Error(rw, "server error", http.StatusInternalServerError)
+	}
 }
 
 func (c Controller) userWithdrawalsHandler(rw http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("gophermartCookie")
-	if err != nil {
-		switch {
-		case errors.Is(err, http.ErrNoCookie):
-			http.Error(rw, "cookie not found", http.StatusUnauthorized)
-		default:
-			http.Error(rw, "server error", http.StatusInternalServerError)
-		}
+	cookie, _ := r.Cookie("gophermartCookie")
+
+	exist, _ := c.storage.IsUserExist(cookie.Value)
+
+	if !exist {
+		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
 		return
 	}
 
-	rw.Write([]byte(cookie.Value))
-	rw.Write([]byte("/api/user/orders userWithdrawalsHandler!!!"))
+	withdrawals, err := c.storage.GetWithdrawals(cookie.Value)
+
+	if err != nil {
+		http.Error(rw, "server error", http.StatusInternalServerError)
+		return
+	}
+
+	if len(withdrawals.WithDrawals) == 0 {
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	body, err := json.Marshal(withdrawals)
 	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusOK)
+	if err == nil {
+		rw.Write([]byte(body))
+	} else {
+		http.Error(rw, "server error", http.StatusInternalServerError)
+	}
 }
 
 func (c Controller) userRegisterHandler(rw http.ResponseWriter, r *http.Request) {
@@ -140,7 +174,6 @@ func (c Controller) userLoginHandler(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Request) {
-	c.logger.Info().Msg("userPostOrdersHandler")
 	content := r.Header.Get("Content-Type")
 	if content != "text/plain" && content != "" {
 		http.Error(rw, "content-type not supported!", http.StatusBadRequest)
@@ -148,15 +181,6 @@ func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Reques
 	}
 
 	cookie, err := r.Cookie("gophermartCookie")
-	if err != nil {
-		switch {
-		case errors.Is(err, http.ErrNoCookie):
-			http.Error(rw, "cookie not found", http.StatusUnauthorized)
-		default:
-			http.Error(rw, "server error", http.StatusInternalServerError)
-		}
-		return
-	}
 
 	requestData, err := ioutil.ReadAll(r.Body)
 	c.logger.Info().Msg(string(requestData))
@@ -191,8 +215,6 @@ func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	rw.Write([]byte(requestData))
-	rw.Header().Set("Content-Type", "application/json")
 }
 
 func (c Controller) userBalanceWithdrawalsHandler(rw http.ResponseWriter, r *http.Request) {

@@ -5,21 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/stdlib"
-)
-
-type OrderStatus int
-
-const (
-	NEW OrderStatus = iota + 1
-	PROCESSING
-	INVALID
-	PROCESSED
+	"github.com/rs/zerolog"
 )
 
 type AddOrderReturn int
@@ -42,30 +35,45 @@ type UserBalance struct {
 }
 
 type Order struct {
-	Number     int         `json:"number"`
-	Status     OrderStatus `json:"status"`
-	Accrual    float64     `json:"accrual,omitempty"`
-	UploadedAt time.Time   `json:"uploaded_at"`
-	UserId     int
+	Number     int       `json:"number"`
+	Status     string    `json:"status"`
+	Accrual    *float64  `json:"accrual,omitempty"`
+	UploadedAt time.Time `json:"uploaded_at"`
+}
+
+type Orders struct {
+	Orders []Order `json:"orders"`
+}
+
+type WithDrawal struct {
+	Order       int       `json:"order"`
+	Sum         float64   `json:"sum"`
+	ProcessedAt time.Time `json:"processed_at"`
+}
+
+type WithDrawals struct {
+	WithDrawals []WithDrawal `json:"withdrawals"`
 }
 
 type StorageController interface {
-	IsUserExist(user UserInfo) (bool, error)
+	IsUserExist(login string) (bool, error)
 	IsUserValid(user UserInfo) error
 	AddUser(user UserInfo) error
 	AddOrder(login string, number string) (AddOrderReturn, error)
-	//GetOrders(login string) Orders
-	//GetBalance(login string)
+	GetOrders(login string) (Orders, error)
+	GetBalance(login string) (UserBalance, error)
+	GetWithdrawals(login string) (WithDrawals, error)
+
 	//WithdrawBalance(login string)
-	//GetWithdrawals(login string)
 	//UpdateOrderStatus() //горутина, которая будет делать GET /api/orders/{number} для заказов, у которых статус NEW или PROCESSING
 }
 
 type DBController struct {
-	db *sql.DB // реализиует методы StorageController'a
+	db     *sql.DB // реализиует методы StorageController'a
+	logger zerolog.Logger
 }
 
-func NewDBController(dsn string) (*DBController, error) {
+func NewDBController(dsn string, logger zerolog.Logger) (*DBController, error) {
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -79,15 +87,16 @@ func NewDBController(dsn string) (*DBController, error) {
 	}
 
 	return &DBController{
-		db: db,
+		db:     db,
+		logger: logger,
 	}, nil
 }
 
-func (d *DBController) IsUserExist(user UserInfo) (bool, error) {
+func (d *DBController) IsUserExist(login string) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	rows, err := d.db.QueryContext(ctx, "SELECT COUNT(*) FROM users WHERE login = $1", user.Login)
+	rows, err := d.db.QueryContext(ctx, "SELECT COUNT(*) FROM users WHERE login = $1", login)
 
 	if err != nil {
 		return false, err
@@ -115,7 +124,7 @@ func (d *DBController) IsUserExist(user UserInfo) (bool, error) {
 
 func (d *DBController) IsUserValid(user UserInfo) error {
 
-	exist, err := d.IsUserExist(user)
+	exist, err := d.IsUserExist(user.Login)
 
 	if !exist || err != nil {
 		return errors.New("Problem with user!")
@@ -145,7 +154,7 @@ func (d *DBController) IsUserValid(user UserInfo) error {
 
 func (d *DBController) AddUser(user UserInfo) error {
 
-	exist, err := d.IsUserExist(user)
+	exist, err := d.IsUserExist(user.Login)
 
 	if exist || err != nil {
 		return errors.New("User already exist!")
@@ -167,7 +176,6 @@ func (d *DBController) AddUser(user UserInfo) error {
 func (d *DBController) AddOrder(login string, number string) (AddOrderReturn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	fmt.Println("AddOrder()")
 	var userId int
 
 	n, _ := strconv.Atoi(number)
@@ -175,7 +183,6 @@ func (d *DBController) AddOrder(login string, number string) (AddOrderReturn, er
 	row := d.db.QueryRow("SELECT user_id FROM orders WHERE number = $1", n)
 
 	if row.Scan(&userId) == sql.ErrNoRows {
-		fmt.Println("row.Err() == sql.ErrNoRows")
 		row := d.db.QueryRow("SELECT id FROM users WHERE login = $1", login)
 		err := row.Scan(&userId)
 
@@ -192,8 +199,6 @@ func (d *DBController) AddOrder(login string, number string) (AddOrderReturn, er
 
 		return ADDED, nil
 	} else {
-		fmt.Println("row.Err() != sql.ErrNoRows")
-		fmt.Println("order.UserId = ", userId)
 
 		var userLogin string
 		row = d.db.QueryRow("SELECT login FROM users WHERE id = $1", userId)
@@ -210,4 +215,159 @@ func (d *DBController) AddOrder(login string, number string) (AddOrderReturn, er
 	}
 
 	return ALREADY_MADE_BY_USER, nil
+}
+
+func (d *DBController) GetOrders(login string) (Orders, error) {
+	d.logger.Trace().Msg("GetOrders func!")
+	orders := &Orders{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userId, err := d.getUserIdByLogin(login)
+	d.logger.Debug().Int("User id is ", userId).Msg("")
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return Orders{}, err
+	}
+
+	rows, err := d.db.QueryContext(ctx, "SELECT number, status, accrual, uploaded_at from orders WHERE user_id = $1", userId)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return Orders{}, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var o Order
+		err = rows.Scan(&o.Number, &o.Status, &o.Accrual, &o.UploadedAt)
+		if err != nil {
+			d.logger.Info().Err(err).Msg("")
+			return Orders{}, err
+		}
+
+		orders.Orders = append(orders.Orders, o)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return Orders{}, err
+	}
+
+	sortOrdersByTime(orders)
+
+	return *orders, nil
+}
+
+func (d *DBController) GetBalance(login string) (UserBalance, error) {
+	d.logger.Trace().Msg("GetBalance func!")
+	userBalance := UserBalance{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userId, err := d.getUserIdByLogin(login)
+	d.logger.Debug().Int("UserId", userId).Msg("")
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return UserBalance{}, err
+	}
+
+	rows, err := d.db.QueryContext(ctx, "SELECT current, withdrawn FROM balance WHERE user_id = $1", userId)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return UserBalance{}, err
+	}
+
+	defer rows.Close()
+
+	rows.Next()
+	err = rows.Scan(&userBalance.Current, &userBalance.Withdrawn)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return UserBalance{}, err
+	}
+
+	return userBalance, nil
+}
+
+func (d *DBController) GetWithdrawals(login string) (WithDrawals, error) {
+	d.logger.Trace().Msg("GetWithdrawals func!")
+	withdrawals := &WithDrawals{}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userId, err := d.getUserIdByLogin(login)
+	d.logger.Debug().Int("UserId", userId).Msg("")
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return WithDrawals{}, err
+	}
+
+	rows, err := d.db.QueryContext(ctx, `SELECT orders.number, sum, processed_at from withdrawals 
+											INNER JOIN orders ON withdrawals.order_id = orders.id
+											WHERE withdrawals.user_id = $1`,
+		userId)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return WithDrawals{}, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var w WithDrawal
+		err = rows.Scan(&w.Order, &w.Sum, &w.ProcessedAt)
+		if err != nil {
+			d.logger.Info().Err(err).Msg("")
+			return WithDrawals{}, err
+		}
+
+		withdrawals.WithDrawals = append(withdrawals.WithDrawals, w)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return WithDrawals{}, err
+	}
+
+	sortWithDrawalsByTime(withdrawals)
+
+	return *withdrawals, nil
+}
+
+func (d *DBController) getUserIdByLogin(login string) (int, error) {
+	var userId int
+	row := d.db.QueryRow("SELECT id FROM users WHERE login = $1", login)
+	err := row.Scan(&userId)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return 0, err
+	}
+
+	return userId, nil
+}
+
+func sortOrdersByTime(orders *Orders) {
+	sort.Slice(orders.Orders, func(i, j int) bool {
+		return orders.Orders[i].UploadedAt.After(orders.Orders[j].UploadedAt)
+	})
+}
+
+func sortWithDrawalsByTime(withdrawals *WithDrawals) {
+	sort.Slice(withdrawals.WithDrawals, func(i, j int) bool {
+		return withdrawals.WithDrawals[i].ProcessedAt.After(withdrawals.WithDrawals[j].ProcessedAt)
+	})
 }
