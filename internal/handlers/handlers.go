@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"internal/middleware"
 	"internal/storage"
 	"io/ioutil"
@@ -37,7 +38,7 @@ func (c Controller) Router() chi.Router {
 	r.Post("/api/user/register", c.userRegisterHandler)
 	r.Post("/api/user/login", c.userLoginHandler)
 	r.Post("/api/user/orders", c.userPostOrdersHandler)
-	r.Post("/api/user/balance/withdraw", c.userBalanceWithdrawalsHandler)
+	r.Post("/api/user/balance/withdraw", c.userPostWithDrawBalanceHandler)
 
 	return r
 }
@@ -217,8 +218,46 @@ func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Reques
 
 }
 
-func (c Controller) userBalanceWithdrawalsHandler(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Set("Content-Type", "application/json")
+func (c Controller) userPostWithDrawBalanceHandler(rw http.ResponseWriter, r *http.Request) {
+	content := r.Header.Get("Content-Type")
+	if content != "application/json" && content != "" {
+		http.Error(rw, "content-type not supported!", http.StatusBadRequest)
+		return
+	}
+	cookie, _ := r.Cookie("gophermartCookie")
+
+	exist, _ := c.storage.IsUserExist(cookie.Value)
+
+	if !exist {
+		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
+		return
+	}
+
+	var withdrawal storage.WithDrawal
+	if err := json.NewDecoder(r.Body).Decode(&withdrawal); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := storage.IsOrderNumberValid(string(withdrawal.Order))
+
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	err = c.storage.WithdrawBalance(cookie.Value, withdrawal)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, storage.ErrNotEnoughBalance):
+			http.Error(rw, storage.ErrNotEnoughBalance.Error(), http.StatusPaymentRequired)
+		default:
+			http.Error(rw, "server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
 	rw.WriteHeader(http.StatusOK)
 }
 

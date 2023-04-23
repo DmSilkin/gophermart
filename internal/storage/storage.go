@@ -15,6 +15,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var ErrNotEnoughBalance = errors.New("Current balance is not enough!")
+
 type AddOrderReturn int
 
 const (
@@ -46,9 +48,9 @@ type Orders struct {
 }
 
 type WithDrawal struct {
-	Order       int       `json:"order"`
+	Order       string    `json:"order"`
 	Sum         float64   `json:"sum"`
-	ProcessedAt time.Time `json:"processed_at"`
+	ProcessedAt time.Time `json:"processed_at,omitempty"`
 }
 
 type WithDrawals struct {
@@ -63,8 +65,7 @@ type StorageController interface {
 	GetOrders(login string) (Orders, error)
 	GetBalance(login string) (UserBalance, error)
 	GetWithdrawals(login string) (WithDrawals, error)
-
-	//WithdrawBalance(login string)
+	WithdrawBalance(login string, withdrawal WithDrawal) error
 	//UpdateOrderStatus() //горутина, которая будет делать GET /api/orders/{number} для заказов, у которых статус NEW или PROCESSING
 }
 
@@ -345,6 +346,103 @@ func (d *DBController) GetWithdrawals(login string) (WithDrawals, error) {
 	sortWithDrawalsByTime(withdrawals)
 
 	return *withdrawals, nil
+}
+
+func (d *DBController) WithdrawBalance(login string, withdrawal WithDrawal) error {
+	d.logger.Trace().Msg("WithdrawBalance func!")
+
+	userId, err := d.getUserIdByLogin(login)
+	d.logger.Debug().Int("UserId", userId).Msg("")
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return err
+	}
+
+	userBalance, err := d.GetBalance(login)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return err
+	}
+
+	if userBalance.Current < withdrawal.Sum {
+		d.logger.Info().Err(ErrNotEnoughBalance).Msg(ErrNotEnoughBalance.Error())
+		return ErrNotEnoughBalance
+	}
+
+	// транзакция: обновление баланса пользователя и добавление записи в withdrawals
+	err = d.updateUserBalance(userId, userBalance, withdrawal)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return err
+	}
+
+	return nil
+}
+
+func (d *DBController) updateUserBalance(userId int, userBalance UserBalance, withdrawal WithDrawal) error {
+	number, err := strconv.Atoi((withdrawal.Order))
+
+	if err != nil {
+		return err
+	}
+
+	orderId, err := d.getOrderIdByNumber(number)
+
+	newBalance := UserBalance{
+		Current:   userBalance.Current - withdrawal.Sum,
+		Withdrawn: userBalance.Withdrawn + withdrawal.Sum,
+	}
+
+	if err != nil {
+		return err
+	}
+
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare(`UPDATE balance SET current=$1, withdrawn=$2 WHERE id=$3`)
+	if err != nil {
+		return err
+	}
+
+	if _, err = stmt.Exec(newBalance.Current, newBalance.Withdrawn, userId); err != nil {
+		return err
+	}
+
+	stmt, err = tx.Prepare(`INSERT INTO withdrawals(user_id, order_id, sum, processed_at) VALUES($1,$2,$3,$4)`)
+	if err != nil {
+		return err
+	}
+
+	if _, err = stmt.Exec(userId, orderId, withdrawal.Sum, time.Now().Format(time.RFC3339)); err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *DBController) getOrderIdByNumber(number int) (int, error) {
+	var orderId int
+	row := d.db.QueryRow("SELECT id FROM orders WHERE number = $1", number)
+	err := row.Scan(&orderId)
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return 0, err
+	}
+
+	return orderId, nil
 }
 
 func (d *DBController) getUserIdByLogin(login string) (int, error) {
