@@ -66,17 +66,20 @@ func UnGzipHandle(next http.Handler) http.Handler {
 
 func CheckCookieHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		_, err := r.Cookie("gophermartCookie")
-		if err != nil {
-			switch {
-			case errors.Is(err, http.ErrNoCookie):
-				http.Error(w, "cookie not found", http.StatusUnauthorized)
-			default:
-				http.Error(w, "server error", http.StatusInternalServerError)
+		if r.RequestURI != "/api/user/register" {
+			_, err := r.Cookie("gophermartCookie")
+			if err != nil {
+				switch {
+				case errors.Is(err, http.ErrNoCookie):
+					http.Error(w, "cookie not found", http.StatusUnauthorized)
+				default:
+					http.Error(w, "server error", http.StatusInternalServerError)
+				}
+				return
 			}
-			return
+			next.ServeHTTP(w, r)
+		} else {
+			next.ServeHTTP(w, r)
 		}
-		next.ServeHTTP(w, r)
 	})
 }

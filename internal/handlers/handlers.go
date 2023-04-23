@@ -152,8 +152,7 @@ func (c Controller) userRegisterHandler(rw http.ResponseWriter, r *http.Request)
 
 	cookie := createCookieForUser(userInfo.Login)
 	http.SetCookie(rw, &cookie)
-
-	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Add("Authorization", `Basic realm="Give username and password"`)
 }
 
 func (c Controller) userLoginHandler(rw http.ResponseWriter, r *http.Request) {
@@ -171,6 +170,7 @@ func (c Controller) userLoginHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie := createCookieForUser(userInfo.Login)
+	rw.Header().Add("Authorization", `Basic realm="Give username and password"`)
 	http.SetCookie(rw, &cookie)
 }
 
