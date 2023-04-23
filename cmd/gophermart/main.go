@@ -12,6 +12,8 @@ import (
 	"internal/storage"
 
 	"github.com/go-chi/chi"
+	_ "github.com/jackc/pgx"
+	_ "github.com/jackc/pgx/stdlib"
 	"github.com/rs/zerolog"
 )
 
