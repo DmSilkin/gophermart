@@ -88,7 +88,7 @@ func NewDBController(dsn string, logger zerolog.Logger) (*DBController, error) {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://../gophermart/migrations",
+		"file://cmd/gophermart/migrations",
 		"pgx", driver)
 
 	if err != nil {
