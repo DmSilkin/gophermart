@@ -74,16 +74,17 @@ func (c Controller) userGetOrdersHandler(rw http.ResponseWriter, r *http.Request
 }
 
 func (c Controller) userBalanceHandler(rw http.ResponseWriter, r *http.Request) {
-	cookie, _ := r.Cookie("gophermartCookie")
+	username := r.Header.Get("Authorization")
+	//cookie, _ := r.Cookie("gophermartCookie")
 
-	exist, _ := c.storage.IsUserExist(cookie.Value)
+	exist, _ := c.storage.IsUserExist(username)
 
 	if !exist {
 		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
 		return
 	}
 
-	userBalance, err := c.storage.GetBalance(cookie.Value)
+	userBalance, err := c.storage.GetBalance(username)
 
 	if err != nil {
 		http.Error(rw, "server error", http.StatusInternalServerError)
@@ -100,16 +101,17 @@ func (c Controller) userBalanceHandler(rw http.ResponseWriter, r *http.Request) 
 }
 
 func (c Controller) userWithdrawalsHandler(rw http.ResponseWriter, r *http.Request) {
-	cookie, _ := r.Cookie("gophermartCookie")
+	//cookie, _ := r.Cookie("gophermartCookie")
+	username := r.Header.Get("Authorization")
 
-	exist, _ := c.storage.IsUserExist(cookie.Value)
+	exist, _ := c.storage.IsUserExist(username)
 
 	if !exist {
 		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
 		return
 	}
 
-	withdrawals, err := c.storage.GetWithdrawals(cookie.Value)
+	withdrawals, err := c.storage.GetWithdrawals(username)
 
 	if err != nil {
 		http.Error(rw, "server error", http.StatusInternalServerError)
@@ -220,9 +222,12 @@ func (c Controller) userPostWithDrawBalanceHandler(rw http.ResponseWriter, r *ht
 		http.Error(rw, "content-type not supported!", http.StatusBadRequest)
 		return
 	}
-	cookie, _ := r.Cookie("gophermartCookie")
 
-	exist, _ := c.storage.IsUserExist(cookie.Value)
+	username := r.Header.Get("Authorization")
+
+	//cookie, _ := r.Cookie("gophermartCookie")
+
+	exist, _ := c.storage.IsUserExist(username)
 
 	if !exist {
 		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
@@ -242,7 +247,7 @@ func (c Controller) userPostWithDrawBalanceHandler(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	err = c.storage.WithdrawBalance(cookie.Value, withdrawal)
+	err = c.storage.WithdrawBalance(username, withdrawal)
 
 	if err != nil {
 		switch {
