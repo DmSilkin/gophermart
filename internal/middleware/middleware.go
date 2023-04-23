@@ -66,7 +66,7 @@ func UnGzipHandle(next http.Handler) http.Handler {
 
 func CheckCookieHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.RequestURI != "/api/user/register" {
+		if r.RequestURI != "/api/user/register" && r.RequestURI != "/api/user/login" {
 			_, err := r.Cookie("gophermartCookie")
 			if err != nil {
 				switch {

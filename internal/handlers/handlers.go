@@ -142,29 +142,28 @@ func (c Controller) userRegisterHandler(rw http.ResponseWriter, r *http.Request)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	err := c.storage.AddUser(userInfo)
 
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusConflict)
 		return
 	}
-
 	cookie := createCookieForUser(userInfo.Login)
 	http.SetCookie(rw, &cookie)
 	rw.Header().Add("Authorization", `Basic realm="Give username and password"`)
 }
 
 func (c Controller) userLoginHandler(rw http.ResponseWriter, r *http.Request) {
+
 	var userInfo storage.UserInfo
 	if err := json.NewDecoder(r.Body).Decode(&userInfo); err != nil {
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	err := c.storage.IsUserValid(userInfo)
 
 	if err != nil {
+		c.logger.Err(err).Msg("")
 		http.Error(rw, err.Error(), http.StatusUnauthorized)
 		return
 	}

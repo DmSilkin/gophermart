@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -89,7 +88,7 @@ func NewDBController(dsn string, logger zerolog.Logger) (*DBController, error) {
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
-		"file://cmd/gophermart/migrations",
+		"file://../gophermart/migrations",
 		"pgx", driver)
 
 	if err != nil {
@@ -120,8 +119,6 @@ func (d *DBController) IsUserExist(login string) (bool, error) {
 	var count int
 	rows.Next()
 	err = rows.Scan(&count)
-
-	fmt.Println("IsUserExist count ", count)
 
 	if err != nil {
 		return false, err
@@ -166,7 +163,6 @@ func (d *DBController) IsUserValid(user UserInfo) error {
 }
 
 func (d *DBController) AddUser(user UserInfo) error {
-
 	exist, err := d.IsUserExist(user.Login)
 
 	if exist || err != nil {
