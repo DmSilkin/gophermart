@@ -9,7 +9,6 @@ import (
 
 	"internal/config"
 	"internal/handlers"
-	"internal/storage"
 
 	"github.com/go-chi/chi"
 	_ "github.com/jackc/pgx"
@@ -27,13 +26,8 @@ func main() {
 		log.Fatalln(err)
 	}
 	logger := zerolog.New(os.Stdout).Level(1)
-	dc, err := storage.NewDBController(cfg.DatabaseURI, logger)
 
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	controller := handlers.NewController(dc, logger)
+	controller := handlers.NewController(cfg, logger)
 
 	r := chi.NewRouter()
 	r.Mount("/", controller.Router())

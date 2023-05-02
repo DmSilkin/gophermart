@@ -3,22 +3,31 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"internal/config"
 	"internal/middleware"
 	"internal/storage"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/rs/zerolog"
 )
 
+const COOKIE_NAME string = "gophermartCookie"
+
 type Controller struct {
 	storage storage.StorageController // интерфейс для взаимодействия с БД
 	logger  zerolog.Logger
-	// Список аутентифицированных пользователей?
 }
 
-func NewController(storage storage.StorageController, logger zerolog.Logger) *Controller {
+func NewController(cfg config.ServerConfig, logger zerolog.Logger) *Controller {
+	storage, err := storage.NewDBController(cfg.DatabaseURI, logger)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	return &Controller{
 		storage: storage,
 		logger:  logger,
@@ -75,7 +84,6 @@ func (c Controller) userGetOrdersHandler(rw http.ResponseWriter, r *http.Request
 
 func (c Controller) userBalanceHandler(rw http.ResponseWriter, r *http.Request) {
 	username := r.Header.Get("Authorization")
-	//cookie, _ := r.Cookie("gophermartCookie")
 
 	exist, _ := c.storage.IsUserExist(username)
 
@@ -101,7 +109,6 @@ func (c Controller) userBalanceHandler(rw http.ResponseWriter, r *http.Request) 
 }
 
 func (c Controller) userWithdrawalsHandler(rw http.ResponseWriter, r *http.Request) {
-	//cookie, _ := r.Cookie("gophermartCookie")
 	username := r.Header.Get("Authorization")
 
 	exist, _ := c.storage.IsUserExist(username)
@@ -177,9 +184,6 @@ func (c Controller) userPostOrdersHandler(rw http.ResponseWriter, r *http.Reques
 	}
 
 	username := r.Header.Get("Authorization")
-	//cookie, err := r.Cookie("gophermartCookie")
-
-	//fmt.Println("cookie:", cookie)
 
 	requestData, err := ioutil.ReadAll(r.Body)
 	c.logger.Info().Msg(string(requestData))
@@ -225,8 +229,6 @@ func (c Controller) userPostWithDrawBalanceHandler(rw http.ResponseWriter, r *ht
 
 	username := r.Header.Get("Authorization")
 
-	//cookie, _ := r.Cookie("gophermartCookie")
-
 	exist, _ := c.storage.IsUserExist(username)
 
 	if !exist {
@@ -264,7 +266,7 @@ func (c Controller) userPostWithDrawBalanceHandler(rw http.ResponseWriter, r *ht
 
 func createCookieForUser(login string) http.Cookie {
 	return http.Cookie{
-		Name:     "gophermartCookie",
+		Name:     COOKIE_NAME,
 		Value:    login,
 		Path:     "/",
 		MaxAge:   3600,
