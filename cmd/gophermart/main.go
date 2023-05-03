@@ -9,9 +9,7 @@ import (
 
 	"internal/config"
 	"internal/handlers"
-	"internal/storage"
 
-	"github.com/go-chi/chi"
 	_ "github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/rs/zerolog"
@@ -27,16 +25,10 @@ func main() {
 		log.Fatalln(err)
 	}
 	logger := zerolog.New(os.Stdout).Level(1)
-	dc, err := storage.NewDBController(cfg.DatabaseURI, logger)
 
-	if err != nil {
-		log.Fatalln(err)
-	}
+	controller := handlers.NewController(cfg, logger)
 
-	controller := handlers.NewController(dc, logger)
-
-	r := chi.NewRouter()
-	r.Mount("/", controller.Router())
+	r := controller.NewRouter()
 
 	server := &http.Server{Addr: cfg.HTTPAddress, Handler: r}
 	go func() {
