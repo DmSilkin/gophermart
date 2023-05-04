@@ -55,7 +55,7 @@ func (c Controller) UserWithdrawalsHandler(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	body, err := json.Marshal(withdrawals)
+	body, err := json.Marshal(withdrawals.WithDrawals)
 	rw.Header().Set("Content-Type", "application/json")
 	if err == nil {
 		rw.Write([]byte(body))

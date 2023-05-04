@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS balance (
 CREATE TABLE IF NOT EXISTS withdrawals (
     id serial PRIMARY KEY, 
     user_id bigint NOT NULL, 
-    order_id bigint NOT NULL, 
+    number varchar(100) NOT NULL, 
     sum numeric NOT NULL, 
     processed_at timestamptz NOT NULL
     );
@@ -34,4 +34,4 @@ ALTER TABLE "balance" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id");
 
 ALTER TABLE "withdrawals" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id");
 
-ALTER TABLE "withdrawals" ADD FOREIGN KEY ("order_id") REFERENCES "orders" ("id");
+--ALTER TABLE "withdrawals" ADD FOREIGN KEY ("order_id") REFERENCES "orders" ("id");

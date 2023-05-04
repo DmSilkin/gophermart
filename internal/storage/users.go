@@ -81,6 +81,21 @@ func (d *DBController) AddUser(user UserInfo) error {
 		return err
 	}
 
+	userId, err := d.GetUserIdByLogin(user.Login)
+	d.logger.Debug().Int("UserId", userId).Msg("")
+
+	if err != nil {
+		d.logger.Info().Err(err).Msg("")
+		return err
+	}
+
+	_, err = d.db.ExecContext(ctx, `INSERT INTO balance(user_id, current, withdrawn) VALUES($1,0,0)`, // когда пользователь создастся, назначим ему нулевой баланс
+		userId)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

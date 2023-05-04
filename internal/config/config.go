@@ -10,7 +10,7 @@ import (
 
 type ServerConfig struct {
 	HTTPAddress    string        `env:"RUN_ADDRESS" envDefault:"localhost:18080"`
-	DatabaseURI    string        `env:"DATABASE_URI" envDefault:"postgres://postgres:0000@localhost:5432/gophermart"`
+	DatabaseURI    string        `env:"DATABASE_URI" envDefault:"postgres://postgres:0000@localhost:5432/go-test"`
 	AccrualAddress string        `env:"ACCRUAL_SYSTEM_ADDRESS" envDefault:"http://localhost:8080"`
 	PollInterval   time.Duration `env:"POLL_INTERVAL" envDefault:"2s"`
 }

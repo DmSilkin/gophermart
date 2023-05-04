@@ -13,14 +13,6 @@ func (d *DBController) GetBalance(userId int) (UserBalance, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	//userId, err := d.getUserIdByLogin(login)
-	d.logger.Debug().Int("UserId", userId).Msg("")
-
-	// if err != nil {
-	// 	d.logger.Info().Err(err).Msg("")
-	// 	return UserBalance{}, err
-	// }
-
 	rows, err := d.db.QueryContext(ctx, "SELECT current, withdrawn FROM balance WHERE user_id = $1", userId)
 
 	if err != nil {
@@ -56,9 +48,8 @@ func (d *DBController) GetWithdrawals(login string) (WithDrawals, error) {
 		return WithDrawals{}, err
 	}
 
-	rows, err := d.db.QueryContext(ctx, `SELECT orders.number, sum, processed_at from withdrawals 
-											INNER JOIN orders ON withdrawals.order_id = orders.id
-											WHERE withdrawals.user_id = $1`,
+	rows, err := d.db.QueryContext(ctx, `SELECT number, sum, processed_at from withdrawals 
+										 WHERE withdrawals.user_id = $1`,
 		userId)
 
 	if err != nil {
@@ -91,10 +82,10 @@ func (d *DBController) GetWithdrawals(login string) (WithDrawals, error) {
 }
 
 func (d *DBController) WithdrawBalance(login string, withdrawal WithDrawal) error {
-	d.logger.Trace().Msg("WithdrawBalance func!")
+	d.logger.Info().Msg("WithdrawBalance func!")
 
 	userId, err := d.GetUserIdByLogin(login)
-	d.logger.Debug().Int("UserId", userId).Msg("")
+	d.logger.Info().Int("UserId", userId).Msg("")
 
 	if err != nil {
 		d.logger.Info().Err(err).Msg("")
@@ -169,15 +160,9 @@ func (d *DBController) updateUserBalance(userId int, userBalance UserBalance, ac
 }
 
 func (d *DBController) withdrawUserBalance(userId int, userBalance UserBalance, withdrawal WithDrawal) error {
-	orderId, err := d.getOrderIdByNumber(withdrawal.Order)
-
 	newBalance := UserBalance{
 		Current:   userBalance.Current - withdrawal.Sum,
 		Withdrawn: userBalance.Withdrawn + withdrawal.Sum,
-	}
-
-	if err != nil {
-		return err
 	}
 
 	tx, err := d.db.Begin()
@@ -185,7 +170,7 @@ func (d *DBController) withdrawUserBalance(userId int, userBalance UserBalance, 
 		return err
 	}
 
-	stmt, err := tx.Prepare(`UPDATE balance SET current=$1, withdrawn=$2 WHERE id=$3`)
+	stmt, err := tx.Prepare(`UPDATE balance SET current=$1, withdrawn=$2 WHERE user_id=$3`)
 	if err != nil {
 		return err
 	}
@@ -194,12 +179,12 @@ func (d *DBController) withdrawUserBalance(userId int, userBalance UserBalance, 
 		return err
 	}
 
-	stmt, err = tx.Prepare(`INSERT INTO withdrawals(user_id, order_id, sum, processed_at) VALUES($1,$2,$3,$4)`)
+	stmt, err = tx.Prepare(`INSERT INTO withdrawals(user_id, number, sum, processed_at) VALUES($1,$2,$3,$4)`)
 	if err != nil {
 		return err
 	}
 
-	if _, err = stmt.Exec(userId, orderId, withdrawal.Sum, time.Now().Format(time.RFC3339)); err != nil {
+	if _, err = stmt.Exec(userId, withdrawal.Order, withdrawal.Sum, time.Now().Format(time.RFC3339)); err != nil {
 		return err
 	}
 
