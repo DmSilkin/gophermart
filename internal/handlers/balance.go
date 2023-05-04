@@ -16,8 +16,8 @@ func (c Controller) UserBalanceHandler(rw http.ResponseWriter, r *http.Request) 
 		http.Error(rw, "User does not exist!", http.StatusUnauthorized)
 		return
 	}
-
-	userBalance, err := c.storage.GetBalance(username)
+	userId, err := c.storage.GetUserIdByLogin(username)
+	userBalance, err := c.storage.GetBalance(userId)
 
 	if err != nil {
 		http.Error(rw, "server error", http.StatusInternalServerError)

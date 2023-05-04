@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"internal/accrual"
 	"internal/config"
 	"internal/middleware"
 	"internal/storage"
 	"log"
+	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/rs/zerolog"
@@ -13,6 +15,7 @@ import (
 type Controller struct {
 	storage storage.StorageController // интерфейс для взаимодействия с БД
 	logger  zerolog.Logger
+	accrual *accrual.AccrualController
 }
 
 func NewController(cfg config.ServerConfig, logger zerolog.Logger) *Controller {
@@ -22,9 +25,16 @@ func NewController(cfg config.ServerConfig, logger zerolog.Logger) *Controller {
 		log.Fatalln(err)
 	}
 
+	accrual, err := accrual.NewAccrualController(storage, logger, cfg.AccrualAddress)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	return &Controller{
 		storage: storage,
 		logger:  logger,
+		accrual: accrual,
 	}
 }
 
@@ -50,4 +60,21 @@ func (c Controller) NewRouter() *chi.Mux {
 	r.Mount("/", c.Router())
 
 	return r
+}
+
+func (c Controller) ProcessAccrual(pollInterval time.Duration) error {
+	tickerFlush := time.NewTicker(pollInterval)
+	go func() {
+		for {
+			select {
+			case <-tickerFlush.C:
+				err := c.accrual.UpdateAccrualInfo()
+				if err != nil {
+					c.logger.Fatal().Err(err).Msg("Process Accrual error!")
+				}
+			}
+		}
+	}()
+
+	return nil
 }

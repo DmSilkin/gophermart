@@ -28,6 +28,12 @@ func main() {
 
 	controller := handlers.NewController(cfg, logger)
 
+	err = controller.ProcessAccrual(cfg.PollInterval) // горутина, которая обновляет заказы от аккруала с заданной периодичностью
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	r := controller.NewRouter()
 
 	server := &http.Server{Addr: cfg.HTTPAddress, Handler: r}
@@ -38,6 +44,4 @@ func main() {
 	}()
 
 	<-stop
-
-	// горутина, которая получает заказы от аккруала с заданной периодичностью (по появлению заказа)
 }
