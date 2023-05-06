@@ -10,7 +10,6 @@ import (
 	"internal/config"
 	"internal/handlers"
 
-	"github.com/go-chi/chi"
 	_ "github.com/jackc/pgx"
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/rs/zerolog"
@@ -29,8 +28,13 @@ func main() {
 
 	controller := handlers.NewController(cfg, logger)
 
-	r := chi.NewRouter()
-	r.Mount("/", controller.Router())
+	err = controller.ProcessAccrual(cfg.PollInterval) // горутина, которая обновляет заказы от аккруала с заданной периодичностью
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	r := controller.NewRouter()
 
 	server := &http.Server{Addr: cfg.HTTPAddress, Handler: r}
 	go func() {
@@ -40,6 +44,4 @@ func main() {
 	}()
 
 	<-stop
-
-	// горутина, которая получает заказы от аккруала с заданной периодичностью (по появлению заказа)
 }

@@ -63,14 +63,14 @@ func UnGzipHandle(next http.Handler) http.Handler {
 	})
 }
 
-func CheckCookieHandle(next http.Handler) http.Handler {
+func CheckAuthorizationHandle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.RequestURI != "/api/user/register" && r.RequestURI != "/api/user/login" {
 			headers := r.Header
 			_, ok := headers["Authorization"]
 
 			if !ok {
-				http.Error(w, "cookie not found", http.StatusUnauthorized)
+				http.Error(w, "Authorization not found", http.StatusUnauthorized)
 				return
 			}
 			next.ServeHTTP(w, r)
