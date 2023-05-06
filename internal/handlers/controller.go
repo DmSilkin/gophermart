@@ -41,7 +41,7 @@ func NewController(cfg config.ServerConfig, logger zerolog.Logger) *Controller {
 func (c Controller) Router() chi.Router {
 	r := chi.NewRouter()
 
-	r.Use(middleware.GzipHandle, middleware.UnGzipHandle, middleware.CheckCookieHandle)
+	r.Use(middleware.GzipHandle, middleware.UnGzipHandle, middleware.CheckAuthorizationHandle)
 
 	r.Get("/api/user/orders", c.UserGetOrdersHandler)
 	r.Get("/api/user/balance", c.UserBalanceHandler)

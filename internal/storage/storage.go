@@ -12,8 +12,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var ErrNotEnoughBalance = errors.New("Current balance is not enough!")
-
 type AddOrderReturn int
 
 const (
@@ -69,8 +67,8 @@ type StorageController interface {
 	GetUserIdByLogin(login string) (int, error)
 }
 
-type DBController struct {
-	db     *sql.DB // реализует методы StorageController'a
+type DBController struct { // реализует методы StorageController'a
+	db     *sql.DB
 	logger zerolog.Logger
 }
 

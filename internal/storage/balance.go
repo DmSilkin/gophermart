@@ -2,9 +2,12 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 )
+
+var ErrNotEnoughBalance = errors.New("Current balance is not enough!")
 
 func (d *DBController) GetBalance(userId int) (UserBalance, error) {
 	d.logger.Trace().Msg("GetBalance func!")

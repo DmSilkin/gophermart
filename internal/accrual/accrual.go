@@ -2,7 +2,6 @@ package accrual
 
 import (
 	"encoding/json"
-	"fmt"
 	"internal/storage"
 	"time"
 
@@ -55,7 +54,6 @@ func (a AccrualController) UpdateAccrualInfo() error {
 		if err != nil {
 			a.logger.Error().Msg(err.Error())
 		}
-		fmt.Println("got order:", orderFromAccrual)
 
 		if orderFromAccrual.Status != "REGISTERED" { // если статус заказа в аккруале REGISTERED, то ничего не делаем
 			err := a.storage.UpdateOrderInfo(order.Number, orderFromAccrual.Status, orderFromAccrual.Accrual)
